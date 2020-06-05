@@ -262,7 +262,7 @@ def match_features(im1_features, im2_features):
     '''
     threshold = 0.8
 
-    print(f'threshold: {threshold}')
+    # print(f'threshold: {threshold}')
 
     matches = []
     confidences = []

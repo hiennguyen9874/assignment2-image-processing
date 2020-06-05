@@ -3,7 +3,7 @@ threshold = 0.01
 stride = 2
 sigma = 0.1
 min_distance = 3
-sigma0 = 0.3
+sigma0 = 0.1
 
 #step1: blur image (optional)
 filtered_image = filters.gaussian(image, sigma=sigma)
