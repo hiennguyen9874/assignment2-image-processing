@@ -129,9 +129,8 @@ def main():
 
     # (2) Find distinctive points in each image. See Szeliski 4.1.1
     # !!! You will need to implement get_interest_points. !!!
-
+    
     print("Getting interest points...")
-
     (x1, y1) = student.get_interest_points(image1,feature_width)
     (x2, y2) = student.get_interest_points(image2,feature_width)
 

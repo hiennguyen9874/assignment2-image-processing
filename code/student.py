@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from skimage import filters, feature, img_as_int
 from skimage.measure import regionprops
-import cv2 as cv
 
 
 def get_interest_points(image, feature_width):
@@ -43,63 +42,51 @@ def get_interest_points(image, feature_width):
     :confidences: an np array indicating the confidence (strength) of each interest point
     :scale: an np array indicating the scale of each interest point
     :orientation: an np array indicating the orientation of each interest point
-
     '''
-    # TODO: Your implementation here! See block comments and the project webpage for instructions
     alpha = 0.06
-    threshold = 0.005
+    threshold = 0.01
     stride = 2
-    sigma = 0.2
-    min_distance = 6
+    sigma = 0.1
+    min_distance = 3
+    sigma0 = 0.1
 
-    # sobel filter 3x3
-    # sobel_kernel_x = np.array([[-1, 0, 1],
-    #                            [-2, 0, 2],
-    #                            [-1, 0, 1]])
-    # sobel_kernel_y = np.array([[1, 2, 1],
-    #                            [0, 0, 0],
-    #                            [-1, -2, -1]])
+    # print(f'alpha: {alpha}, threshold: {threshold}, stride: {stride}, sigma: {sigma}, min_distance: {min_distance}')
 
-    # sobel filter 5x5
-    sobel_kernel_x = np.array([[-2, -2, -4, -2, -2],
-                               [-1, -1, -2, -1, -2],
-                               [0, 0, 0, 0, 0],
-                               [1, 1, 1, 1, 1],
-                               [2, 2, 4, 2, 2, ]])
-    sobel_kernel_y = np.array([[-2, -1, 0, 1, 2],
-                               [-2, -1, 0, 1, 2],
-                               [-4, -2, 0, 2, 4],
-                               [-2, -1, 0, 1, 2],
-                               [-2, -1, 0, 1, 2]])
-    I_x = cv.filter2D(image, ddepth=-1, kernel=sobel_kernel_x)
-    I_y = cv.filter2D(image, ddepth=-1, kernel=sobel_kernel_y)
-    I_x = filters.gaussian(I_x, sigma)
-    I_y = filters.gaussian(I_y, sigma)
+    #step1: blur image (optional)
+    filtered_image = filters.gaussian(image, sigma=sigma)
 
-    Ixx = I_x**2
-    Ixy = I_x*I_y
-    Iyy = I_y**2
+    # step2: calculate gradient of image
+    I_x = filters.sobel_v(filtered_image)
+    I_y = filters.sobel_h(filtered_image)
 
+    # step3: calculate Gxx, Gxy, Gyy
+    I_xx = np.square(I_x)
+    I_xy = np.multiply(I_x, I_y)
+    I_yy = np.square(I_y)
+
+    I_xx = filters.gaussian(I_xx, sigma=sigma0)
+    I_xy = filters.gaussian(I_xy, sigma=sigma0)
+    I_yy = filters.gaussian(I_yy, sigma=sigma0)
 
     listC = np.zeros_like(image)
 
-    # Caculate C matrix
+    # step4: caculate C matrix
     for y in range(0, image.shape[0]-feature_width, stride):
         for x in range(0, image.shape[1]-feature_width, stride):
-            Sxx = np.sum(Ixx[y:y+feature_width+1, x:x+feature_width+1])
-            Syy = np.sum(Iyy[y:y+feature_width+1, x:x+feature_width+1])
-            Sxy = np.sum(Ixy[y:y+feature_width+1, x:x+feature_width+1])
+            # matrix 17x17
+            Sxx = np.sum(I_xx[y:y+feature_width+1, x:x+feature_width+1])
+            Syy = np.sum(I_yy[y:y+feature_width+1, x:x+feature_width+1])
+            Sxy = np.sum(I_xy[y:y+feature_width+1, x:x+feature_width+1])
 
             detC = (Sxx * Syy) - (Sxy**2)
             traceC = Sxx + Syy
             C = detC - alpha*(traceC**2)
-
+            
             if C > threshold:
-                listC[y+int(feature_width/2-1), x+int(feature_width/2-1)] = C
+                listC[y+feature_width//2, x+feature_width//2] = C
 
-    # Non-maximal suppression
-    ret = feature.peak_local_max(
-        listC, min_distance=min_distance, threshold_abs=threshold)
+    # step5: using non-maximal suppression
+    ret = feature.peak_local_max(listC, min_distance=min_distance, threshold_abs=threshold)
     return ret[:, 1], ret[:, 0]
 
 
@@ -163,32 +150,23 @@ def get_features(image, x, y, feature_width):
             dimensionality is 128)
 
     '''
-
-    # TODO: Your implementation here! See block comments and the project webpage for instructions
-
-    # This is a placeholder - replace this with your features!
-    # features = np.zeros((1, 128))
-
     x = np.round(x).astype(int)
     y = np.round(y).astype(int)
 
-    sigma_gradient_image = 0.8
+    sigma_gradient_image = 0.1
+    sigma_16x16 = 0.4
     threshold = 0.2
 
+    # print(f'sigma_gradient_image: {sigma_gradient_image}, sigma_16x16: {sigma_16x16}, threshold: {threshold}')
+
     features = np.zeros((len(x), 4, 4, 8))
-
+    
+    # step0: blur image (optional)
+    filtered_image = filters.gaussian(image, sigma=sigma_gradient_image)
+    
     # step1: compute the gradient of image
-    sobel_kernel_x = np.array([[-1, 0, 1],
-                               [-2, 0, 2],
-                               [-1, 0, 1]])
-    sobel_kernel_y = np.array([[1, 2, 1],
-                               [0, 0, 0],
-                               [-1, -2, -1]])
-
-    d_im_x = cv.filter2D(image, ddepth=-1, kernel=sobel_kernel_x)
-    d_im_y = cv.filter2D(image, ddepth=-1, kernel=sobel_kernel_y)
-    d_im_x = filters.gaussian(d_im_x, sigma_gradient_image)
-    d_im_y = filters.gaussian(d_im_y, sigma_gradient_image)
+    d_im_x = filters.sobel_v(filtered_image)
+    d_im_y = filters.sobel_h(filtered_image)
 
     magnitude_gradient = np.sqrt(np.add(np.square(d_im_x), np.square(d_im_y)))
     direction_gradient = np.arctan2(d_im_y, d_im_x)
@@ -201,8 +179,8 @@ def get_features(image, x, y, feature_width):
     # y (0 -> 1024)
     for n, (x_, y_) in enumerate(zip(x, y)):
         # get windows of key point(x, y)
-        rows = (y_ - feature_width//2, y_ + feature_width//2)
-        cols = (x_ - feature_width//2, x_ + feature_width//2)
+        rows = (y_ - feature_width//2, y_ + feature_width//2 + 1)
+        cols = (x_ - feature_width//2, x_ + feature_width//2 + 1)
 
         if rows[0] < 0:
             rows = (0, feature_width+1)
@@ -213,10 +191,16 @@ def get_features(image, x, y, feature_width):
             cols = (0, feature_width+1)
         if cols[1] > image.shape[1]:
             cols = (image.shape[1]-feature_width-1, image.shape[1]-1)
-        
+
         # get gradient and angle of key point
         magnitude_window = magnitude_gradient[rows[0]:rows[1], cols[0]:cols[1]]
         direction_window = direction_gradient[rows[0]:rows[1], cols[0]:cols[1]]
+
+        # Gaussian filter on window
+        magnitude_window = filters.gaussian(
+            magnitude_window, sigma=sigma_16x16)
+        direction_window = filters.gaussian(
+            direction_window, sigma=sigma_16x16)
 
         for i in range(feature_width//4):
             for j in range(feature_width//4):
@@ -225,7 +209,7 @@ def get_features(image, x, y, feature_width):
 
                 current_direction = direction_window[i*feature_width//4: (
                     i+1)*feature_width//4, j*feature_width//4:(j+1)*feature_width//4]
-                
+
                 features[n, i, j] = np.histogram(current_direction.reshape(
                     -1), bins=8, range=(0, 2*np.pi), weights=current_magnitude.reshape(-1))[0]
 
@@ -233,18 +217,15 @@ def get_features(image, x, y, feature_width):
     features = features.reshape((len(x), -1,))
 
     # Normalize vector to [0...1]
-    dividend = np.linalg.norm(features, axis=1).reshape(-1, 1)
-    dividend[dividend == 0] = 1
-    features = features / dividend
+    norm = np.sqrt(np.square(features).sum(axis=1)).reshape(-1, 1)
+    features = features / norm
 
     # Clamp all vector values > 0.2 to 0.2
     features[features >= threshold] = threshold
 
-    # Renormalize
-    # features = features ** 0.8
-    dividend = np.linalg.norm(features, axis=1).reshape(-1, 1)
-    dividend[dividend == 0] = 1
-    features = features / dividend
+    # Re-normalize
+    norm = np.sqrt(np.square(features).sum(axis=1)).reshape(-1, 1)
+    features = features / norm
 
     return features
 
@@ -279,14 +260,9 @@ def match_features(im1_features, im2_features):
             column is an index into im1_features and the second column is an index into im2_features
     :confidences: an np array with a real valued confidence for each match
     '''
+    threshold = 0.8
 
-    # TODO: Your implementation here! See block comments and the project webpage for instructions
-
-    # These are placeholders - replace with your matches and confidences!
-
-    # return np.zeros((1,2)), np.zeros(1)
-
-    threshold = 0.9
+    print(f'threshold: {threshold}')
 
     matches = []
     confidences = []
